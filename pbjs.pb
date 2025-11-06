@@ -474,7 +474,7 @@ DeclareModule JSWindow
   UseModule WindowManager
   Declare CreateJSWindow(x,y,w,h,title.s,flags,html.s="",js.s="")
   Declare OpenJSWindow(*Window.AppWindow )    
-   
+  
 EndDeclareModule
 
 
@@ -647,173 +647,187 @@ Module JSWindow
   
   ; Add this section after your Windows-specific code in the JSWindow module
 
-CompilerIf #PB_Compiler_OS = #PB_OS_MacOS
-  
-
-  
-  Structure MacOSResizeState
-    *Window.AppWindow
-    LastWidth.i
-    LastHeight.i
-    Active.b
-    ThreadID.i
-  EndStructure
-  
-  Global NewMap MacOSResizeStates.MacOSResizeState()
-  Global MacOSResizeMonitorMutex = CreateMutex()
-  
-  ; Background thread that continuously monitors window size
-  Procedure MacOSResizeMonitorThread(*param)
-    Protected key.s = PeekS(*param)
-    FreeMemory(*param)
+ CompilerIf #PB_Compiler_OS = #PB_OS_MacOS
     
-    Repeat
-      LockMutex(MacOSResizeMonitorMutex)
+    Structure MacOSResizeState
+      *Window.AppWindow
+      LastWidth.i
+      LastHeight.i
+      Active.b
+      NSWindow.i
+      ObserverObject.i
+    EndStructure
+    
+    Global NewMap MacOSResizeStates.MacOSResizeState()
+    Global MacOSResizeMonitorMutex = CreateMutex()
+    #NSKeyValueObservingOptionNew = 1 << 0
+    
+    ; Find NSWindow by matching pointer
+    Procedure FindNSWindowForPBWindow(pbWindow.i)
+      Protected sharedApp = CocoaMessage(0, 0, "NSApplication sharedApplication")
+      Protected windowsArray = CocoaMessage(0, sharedApp, "windows")
+      Protected count = CocoaMessage(0, windowsArray, "count")
+      Protected i.i, nsWin.i
       
-      If FindMapElement(MacOSResizeStates(), key)
-        Protected *State.MacOSResizeState = @MacOSResizeStates()
-        
-        If *State\Active And *State\Window
-          Protected currentW = WindowWidth(*State\Window\Window)
-          Protected currentH = WindowHeight(*State\Window\Window)
+      For i = 0 To count - 1
+        nsWin = CocoaMessage(0, windowsArray, "objectAtIndex:", i)
+        If nsWin = pbWindow
+          ProcedureReturn nsWin
+        EndIf
+      Next
+      
+      ProcedureReturn 0
+    EndProcedure
+    
+    ; Callback - called from Objective-C observer
+    ProcedureC MacOSFrameDidChange(*self, sel, notification)
+      ; Get our context from the notification's object
+      Protected nsWindow = CocoaMessage(0, notification, "object")
+      Debug "MacOSFrameDidChange"
+      ; Find our state by matching the window
+      LockMutex(MacOSResizeMonitorMutex)
+      ForEach MacOSResizeStates()
+        If MacOSResizeStates()\NSWindow = nsWindow And MacOSResizeStates()\Active
+          Protected *State.MacOSResizeState = @MacOSResizeStates()
+          
+          Protected currentW.i = WindowWidth(*State\Window\Window)
+          Protected currentH.i = WindowHeight(*State\Window\Window)
           
           If currentW <> *State\LastWidth Or currentH <> *State\LastHeight
             *State\LastWidth = currentW
             *State\LastHeight = currentH
-            
-            ; Update the WebView scale
             UpdateWebViewScale(*State\Window\WebViewGadget, currentW, currentH)
           EndIf
+          
+          Break
         EndIf
-      EndIf
-      
+      Next
       UnlockMutex(MacOSResizeMonitorMutex)
-      
-      ; Sleep for ~16ms (60fps)
-      Delay(16)
-      
-      ; Check if we should stop
+    EndProcedure
+    
+    Procedure MacOSRegisterResizeNotifications(*Window.AppWindow)
       LockMutex(MacOSResizeMonitorMutex)
-      If Not FindMapElement(MacOSResizeStates(), key) Or Not MacOSResizeStates()\Active
-        UnlockMutex(MacOSResizeMonitorMutex)
-        Break
-      EndIf
-      UnlockMutex(MacOSResizeMonitorMutex)
-    ForEver
-  EndProcedure
-  
-  Procedure MacOSRegisterResizeNotifications(*Window.AppWindow)
-    LockMutex(MacOSResizeMonitorMutex)
-    
-    Protected key.s = Str(*Window\Window)
-    
-    If Not FindMapElement(MacOSResizeStates(), key)
-      MacOSResizeStates(key)\Window = *Window
-      MacOSResizeStates(key)\LastWidth = WindowWidth(*Window\Window)
-      MacOSResizeStates(key)\LastHeight = WindowHeight(*Window\Window)
-      MacOSResizeStates(key)\Active = #True
       
-      ; Start monitoring thread
-      Protected *keyMem = AllocateMemory(StringByteLength(key) + SizeOf(Character))
-      PokeS(*keyMem, key)
-      MacOSResizeStates(key)\ThreadID = CreateThread(@MacOSResizeMonitorThread(), *keyMem)
-    EndIf
-    
-    UnlockMutex(MacOSResizeMonitorMutex)
-  EndProcedure
-  
-  Procedure MacOSUnregisterResizeNotifications(*Window.AppWindow)
-    LockMutex(MacOSResizeMonitorMutex)
-    
-    Protected key.s = Str(*Window\Window)
-    
-    If FindMapElement(MacOSResizeStates(), key)
-      ; Signal thread to stop
-      MacOSResizeStates(key)\Active = #False
-      Protected threadID = MacOSResizeStates(key)\ThreadID
-      UnlockMutex(MacOSResizeMonitorMutex)
+      Protected key.s = Str(*Window\Window)
       
-      ; Wait for thread to finish (with timeout)
-      If IsThread(threadID)
-        Protected timeout = ElapsedMilliseconds() + 1000
-        While IsThread(threadID) And ElapsedMilliseconds() < timeout
-          Delay(10)
-        Wend
+      If Not FindMapElement(MacOSResizeStates(), key)
+        MacOSResizeStates(key)\Window = *Window
+        MacOSResizeStates(key)\LastWidth = WindowWidth(*Window\Window)
+        MacOSResizeStates(key)\LastHeight = WindowHeight(*Window\Window)
+        MacOSResizeStates(key)\Active = #True
         
-        If IsThread(threadID)
-          KillThread(threadID)
+        Protected nsWindow.i = FindNSWindowForPBWindow(WindowID(*Window\Window))
+        
+        If nsWindow
+          MacOSResizeStates(key)\NSWindow = nsWindow
+          
+          ; Create observer object
+          Protected observerClass = objc_allocateClassPair_(objc_getClass_("NSObject"), "PBWindowResizeObserver", 0)
+          If observerClass = 0
+            observerClass = objc_getClass_("PBWindowResizeObserver")
+          Else
+            class_addMethod_(observerClass, sel_registerName_("windowDidResize:"), @MacOSFrameDidChange(), "v@:@")
+            objc_registerClassPair_(observerClass)
+          EndIf
+          
+          Protected observer = CocoaMessage(0, CocoaMessage(0, observerClass, "alloc"), "init")
+          MacOSResizeStates(key)\ObserverObject = observer
+          
+          ; Register for notifications instead of KVO
+          Protected notificationCenter = CocoaMessage(0, 0, "NSNotificationCenter defaultCenter")
+          CocoaMessage(0, notificationCenter,
+                       "addObserver:", observer,
+                       "selector:", sel_registerName_("windowDidResize:"),
+                       "name:$", @"NSWindowDidResizeNotification",
+                       "object:", nsWindow)
         EndIf
       EndIf
       
-      LockMutex(MacOSResizeMonitorMutex)
-      DeleteMapElement(MacOSResizeStates(), key)
-    EndIf
+      UnlockMutex(MacOSResizeMonitorMutex)
+    EndProcedure
     
-    UnlockMutex(MacOSResizeMonitorMutex)
+    Procedure MacOSUnregisterResizeNotifications(*Window.AppWindow)
+      LockMutex(MacOSResizeMonitorMutex)
+      
+      Protected key.s = Str(*Window\Window)
+      
+      If FindMapElement(MacOSResizeStates(), key)
+        MacOSResizeStates(key)\Active = #False
+        
+        If MacOSResizeStates(key)\ObserverObject
+          Protected notificationCenter = CocoaMessage(0, 0, "NSNotificationCenter defaultCenter")
+          CocoaMessage(0, notificationCenter, "removeObserver:", MacOSResizeStates(key)\ObserverObject)
+          CocoaMessage(0, MacOSResizeStates(key)\ObserverObject, "release")
+        EndIf
+        
+        DeleteMapElement(MacOSResizeStates(), key)
+      EndIf
+      
+      UnlockMutex(MacOSResizeMonitorMutex)
+    EndProcedure
+    
+CompilerEndIf
+  
+  ; Modify your CreateJSWindow procedure to register notifications:
+  
+  Procedure.i CreateJSWindow(x,y,w,h,title.s,flags,html.s="",js.s="")
+    
+    window = OpenWindow(#PB_Any,x,y,w,h,title.s,flags | #PB_Window_Invisible)
+    If window
+      Protected hWnd = WindowID(window)
+      
+      CompilerIf #PB_Compiler_OS = #PB_OS_Windows
+        SetWindowLongPtr_(WindowID(window), #GWL_STYLE, GetWindowLongPtr_(WindowID(window), #GWL_STYLE) | #WS_CLIPCHILDREN)
+        ApplyThemeToWinHandle(hWnd)
+        UpdateWindow_(hWnd)
+        RedrawWindow_(hWnd, #Null, #Null, #RDW_UPDATENOW | #RDW_ALLCHILDREN | #RDW_FRAME) 
+      CompilerEndIf
+      
+      SetWindowColor(window,RGB(36,36,36))
+      
+      JSWindows(Str(window))\Visible = #False
+      JSWindows(Str(window))\Injected = #False
+      
+      CompilerIf #PB_Compiler_OS = #PB_OS_Windows
+        SetWindowCallback(@WindowCallback(),window,#PB_Window_NoChildEvents)
+      CompilerEndIf
+      
+      webViewGadget = WebViewGadget(#PB_Any, -1, -1, MaxDesktopWidth, MaxDesktopHeight,#PB_WebView_Debug)
+      CompilerIf #PB_Compiler_OS = #PB_OS_Windows
+        HideGadget(webViewGadget,#True)
+      CompilerEndIf
+      
+      BindWebViewCallback(webViewGadget, "callbackReadyState", @CallbackReadyState())
+      BindWebViewCallback(webViewGadget, "callbackInjected", @CallbackInjected())
+      
+      SetGadgetItemText(webViewGadget, #PB_WebView_HtmlCode, html)
+      
+      RegisterSync(webViewGadget)
+      WebViewExecuteScript(webViewGadget, js)
+      RegisterWebViewScale(webViewGadget)
+      
+      UpdateWebViewScale(webViewGadget, WindowWidth(window), WindowHeight(window))
+      *Window = AddManagedWindow(title, window,webViewGadget, @HandleEvent(), @RemoveWindow())
+      
+      ; Register for live resize notifications on macOS
+      CompilerIf #PB_Compiler_OS = #PB_OS_MacOS
+        MacOSRegisterResizeNotifications(*Window)
+      CompilerEndIf
+      
+      Repeat : Delay(1) : Until WindowEvent() = 0
+      
+      ProcedureReturn *Window
+    EndIf 
+    ProcedureReturn -1
+  EndProcedure 
+  
+  Procedure RemoveWindow(*Window.AppWindow)
+    CompilerIf #PB_Compiler_OS = #PB_OS_MacOS
+      MacOSUnregisterResizeNotifications(*Window)
+    CompilerEndIf
+    CloseWindow(*Window\Window)
   EndProcedure
   
-CompilerEndIf
-
-; Modify your CreateJSWindow procedure to register notifications:
-
-Procedure.i CreateJSWindow(x,y,w,h,title.s,flags,html.s="",js.s="")
-  
-  window = OpenWindow(#PB_Any,x,y,w,h,title.s,flags | #PB_Window_Invisible)
-  If window
-    Protected hWnd = WindowID(window)
-    
-    CompilerIf #PB_Compiler_OS = #PB_OS_Windows
-      SetWindowLongPtr_(WindowID(window), #GWL_STYLE, GetWindowLongPtr_(WindowID(window), #GWL_STYLE) | #WS_CLIPCHILDREN)
-      ApplyThemeToWinHandle(hWnd)
-      UpdateWindow_(hWnd)
-      RedrawWindow_(hWnd, #Null, #Null, #RDW_UPDATENOW | #RDW_ALLCHILDREN | #RDW_FRAME) 
-    CompilerEndIf
-    
-    SetWindowColor(window,RGB(36,36,36))
-    
-    JSWindows(Str(window))\Visible = #False
-    JSWindows(Str(window))\Injected = #False
-    
-    CompilerIf #PB_Compiler_OS = #PB_OS_Windows
-      SetWindowCallback(@WindowCallback(),window,#PB_Window_NoChildEvents)
-    CompilerEndIf
-    
-    webViewGadget = WebViewGadget(#PB_Any, -1, -1, MaxDesktopWidth, MaxDesktopHeight,#PB_WebView_Debug)
-    CompilerIf #PB_Compiler_OS = #PB_OS_Windows
-      HideGadget(webViewGadget,#True)
-    CompilerEndIf
-    
-    BindWebViewCallback(webViewGadget, "callbackReadyState", @CallbackReadyState())
-    BindWebViewCallback(webViewGadget, "callbackInjected", @CallbackInjected())
-    
-    SetGadgetItemText(webViewGadget, #PB_WebView_HtmlCode, html)
-    
-    RegisterSync(webViewGadget)
-    WebViewExecuteScript(webViewGadget, js)
-    RegisterWebViewScale(webViewGadget)
-    
-    UpdateWebViewScale(webViewGadget, WindowWidth(window), WindowHeight(window))
-    *Window = AddManagedWindow(title, window,webViewGadget, @HandleEvent(), @RemoveWindow())
-    
-    ; Register for live resize notifications on macOS
-    CompilerIf #PB_Compiler_OS = #PB_OS_MacOS
-      MacOSRegisterResizeNotifications(*Window)
-    CompilerEndIf
-    
-    Repeat : Delay(1) : Until WindowEvent() = 0
-    
-    ProcedureReturn *Window
-  EndIf 
-  ProcedureReturn -1
-EndProcedure 
-
-Procedure RemoveWindow(*Window.AppWindow)
-  CompilerIf #PB_Compiler_OS = #PB_OS_MacOS
-    MacOSUnregisterResizeNotifications(*Window)
-  CompilerEndIf
-  CloseWindow(*Window\Window)
-EndProcedure
-
   Procedure RegisterSync(webViewGadget)
     WebViewExecuteScript(webViewGadget, "")
   EndProcedure
@@ -863,9 +877,9 @@ EndProcedure
         Select Gadget
         EndSelect
       Case #PB_Event_SizeWindow
-       w = WindowWidth(*Window\Window)
-       h = WindowHeight(*Window\Window)
-       UpdateWebViewScale(*Window\WebViewGadget, w, h)  
+        w = WindowWidth(*Window\Window)
+        h = WindowHeight(*Window\Window)
+        UpdateWebViewScale(*Window\WebViewGadget, w, h)  
     EndSelect
     
     If closeWindow
@@ -874,7 +888,7 @@ EndProcedure
     ProcedureReturn #True
   EndProcedure
   
-
+  
   
   Procedure OpenJSWindow(*Window.AppWindow )  
     
@@ -894,9 +908,9 @@ EndModule
 
 
 ; IDE Options = PureBasic 6.21 - C Backend (MacOS X - arm64)
-; CursorPosition = 651
-; FirstLine = 637
-; Folding = ----------
+; CursorPosition = 685
+; FirstLine = 675
+; Folding = -----------
 ; EnableXP
 ; DPIAware
 ; Executable = ../main.exe
