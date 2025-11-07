@@ -37,16 +37,17 @@ Module Execute
     
     WindowManager::InitWindowManager()
     
-   ; *Window1 = JSWindow::CreateJSWindow(600, 100, 600, 400, "PBJS Example",   #PB_Window_SystemMenu | #PB_Window_SizeGadget |  #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget, mainWindow)
-   ; JSWindow::OpenJSWindow(*Window1)
+    *Window1 = JSWindow::CreateJSWindow(600, 100, 600, 400, "PBJS Example",   #PB_Window_SystemMenu | #PB_Window_SizeGadget |  #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget,  mainWindowHtmlStart,mainWindowHtmlStop )
+    
     
     
     *Window2 = JSWindow::CreateJSWindow(100, 50, 700, 600, "PBJS Example", 
                                         #PB_Window_SystemMenu | #PB_Window_SizeGadget | 
                                         #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget, mainWindowHtmlStart,mainWindowHtmlStop )
-    JSWindow::OpenJSWindow(*Window2 )
    
-    
+    JSWindow::OpenJSWindow(*Window1)
+    JSWindow::OpenJSWindow(*Window2 )
+
     WindowManager::RunEventLoop(@HandleMainEvent()) 
     
   EndProcedure
@@ -70,8 +71,8 @@ DataSection
   EndMainWindow:
 EndDataSection
 ; IDE Options = PureBasic 6.21 (Windows - x64)
-; CursorPosition = 12
-; FirstLine = 1
+; CursorPosition = 49
+; FirstLine = 37
 ; Folding = -
 ; EnableXP
 ; DPIAware

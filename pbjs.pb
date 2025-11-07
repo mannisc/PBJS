@@ -370,11 +370,9 @@ EndProcedure
   
   
   Procedure CleanupManagedWindows()
-    NewList Windows()
     ForEach ManagedWindows()
       If ManagedWindows()\Open 
-        AddElement(Windows())
-        Windows() = ManagedWindows()\Window
+       
         If ManagedWindows()\CloseProc
           CallFunctionFast(ManagedWindows()\CloseProc, ManagedWindows()\Window)
         EndIf 
@@ -384,22 +382,7 @@ EndProcedure
       EndIf
     Next
     
-    endTime = ElapsedMilliseconds()
-    Repeat
-      Delay(10)
-      windowExists = #False 
-      ForEach Windows() 
-        If IsWindow(Windows())
-          HideWindow(Windows(),#True )
-          CloseWindow(Windows())
-          windowExists = #True
-        EndIf 
-      Next
-      If windowExists
-        WindowEvent()
-      EndIf 
-    Until Not windowExists Or ElapsedMilliseconds()-endTime > 250
-    
+
   EndProcedure
   
   Procedure RunEventLoop(*HandleMainEvent.HandleMainEvent)
@@ -412,6 +395,7 @@ EndProcedure
     
     While KeepRunning
       Event = WaitWindowEvent()
+      
       If Event <> 0
         
         If Event = #PB_Event_Timer And EventTimer() = #Timer_CheckDesktop
@@ -419,9 +403,7 @@ EndProcedure
             WindowMaxSizeChanged()
           EndIf
         EndIf
-        
-        
-        
+
         EventWindow = EventWindow()
         If *HandleMainEvent( Event, EventWindow, EventGadget) = 0
           ForEach ManagedWindows()
@@ -898,7 +880,7 @@ Module JSWindow
       
       
       
-          JSWindows(Str(*Window\Window))\WebViewGadget = webViewGadget
+      JSWindows(Str(*Window\Window))\WebViewGadget = webViewGadget
 
 
       ; Register for live resize notifications on macOS
@@ -906,7 +888,7 @@ Module JSWindow
         MacOSRegisterResizeNotifications(*Window)
       CompilerEndIf
       
-      Repeat : Delay(1) : Until WindowEvent() = 0
+      ;Repeat : Delay(1) : Until WindowEvent() = 0
       CreateThread(@LoadHtml(),window)
 
       ProcedureReturn *Window
@@ -1025,8 +1007,6 @@ EndProcedure
       InjectStartJS(*Window)
     EndIf 
     
-
-
     Select Event
       Case #PB_Event_CloseWindow
         closeWindow = #True
@@ -1037,19 +1017,14 @@ EndProcedure
         w = WindowWidth(*Window\Window)
         h = WindowHeight(*Window\Window)
         UpdateWebViewScale(JSWindows(Str(*Window\Window))\WebViewGadget, w, h) 
-        
       Case  #EventLoadedHtml
-        
         webViewGadget = JSWindows(Str(*Window\Window))\WebViewGadget
-        
         BindWebViewCallback(webViewGadget, "callbackReadyState", @CallbackReadyState())
         BindWebViewCallback(webViewGadget, "callbackInjected", @CallbackInjected())
         SetGadgetItemText(webViewGadget, #PB_WebView_HtmlCode, JSWindows(Str(*Window\Window))\Html)
         RegisterSync(webViewGadget)
         RegisterWebViewScale(webViewGadget)
         UpdateWebViewScale(webViewGadget, WindowWidth(*Window\Window), WindowHeight(*Window\Window))
-        
-      
     EndSelect
     
     If closeWindow
@@ -1077,8 +1052,8 @@ EndProcedure
 EndModule
 
 ; IDE Options = PureBasic 6.21 (Windows - x64)
-; CursorPosition = 855
-; FirstLine = 852
+; CursorPosition = 1019
+; FirstLine = 1015
 ; Folding = ------------
 ; EnableXP
 ; DPIAware
