@@ -10,7 +10,7 @@ IncludeFile "pbjs.pb"
 
 
 DeclareModule Execute
-  Declare StartApp(mainWindow.s)
+  Declare StartApp(mainWindowHtmlStart,mainWindowHtmlStop)
 EndDeclareModule
 Module Execute
   
@@ -24,7 +24,7 @@ Module Execute
   EndProcedure 
   
   
-  Procedure StartApp(mainWindow.s)
+  Procedure StartApp(mainWindowHtmlStart,mainWindowHtmlStop)
     UseModule OsTheme
     UseModule WindowManager
     
@@ -37,14 +37,13 @@ Module Execute
     
     WindowManager::InitWindowManager()
     
-    *Window1 = JSWindow::CreateJSWindow(800, 100, 600, 400, "PBJS Example", 
-                                        #PB_Window_SystemMenu | #PB_Window_SizeGadget | 
-                                        #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget, mainWindow)
-    JSWindow::OpenJSWindow(*Window1)
+   ; *Window1 = JSWindow::CreateJSWindow(600, 100, 600, 400, "PBJS Example",   #PB_Window_SystemMenu | #PB_Window_SizeGadget |  #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget, mainWindow)
+   ; JSWindow::OpenJSWindow(*Window1)
+    
     
     *Window2 = JSWindow::CreateJSWindow(100, 50, 700, 600, "PBJS Example", 
                                         #PB_Window_SystemMenu | #PB_Window_SizeGadget | 
-                                        #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget, mainWindow)
+                                        #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget, mainWindowHtmlStart,mainWindowHtmlStop )
     JSWindow::OpenJSWindow(*Window2 )
    
     
@@ -54,14 +53,14 @@ Module Execute
 EndModule
 
 
+
 ; =============================================================================
 ;- BOOTSTRAP
 ; =============================================================================
 
-mainWindow.s = PeekS(?MainWindow,?EndMainWindow-?MainWindow, #PB_UTF8   )
 
 
-Execute::StartApp(mainWindow.s)
+Execute::StartApp(?MainWindow,?EndMainWindow)
 WindowManager::CleanupManagedWindows()
 
 End 
@@ -70,9 +69,9 @@ DataSection
   IncludeBinary "react/main-window/dist/index.html"
   EndMainWindow:
 EndDataSection
-; IDE Options = PureBasic 6.21 - C Backend (MacOS X - arm64)
-; CursorPosition = 66
-; FirstLine = 36
+; IDE Options = PureBasic 6.21 (Windows - x64)
+; CursorPosition = 12
+; FirstLine = 1
 ; Folding = -
 ; EnableXP
 ; DPIAware
