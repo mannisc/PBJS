@@ -5,10 +5,17 @@ export function AddTodo() {
   const [text, setText] = useState("");
   const { addTodo } = useTodo();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const response = await window.pbjs.invokeAll(
+      "testSuccess",
+      { test: "params" },
+      { test: "data" }
+    );
+
     if (text.trim()) {
-      addTodo(text.trim());
+      addTodo(text.trim() + " ✅" + JSON.stringify(response));
       setText("");
     }
   };

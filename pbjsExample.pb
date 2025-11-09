@@ -60,6 +60,7 @@ Module Execute
     UseModule OsTheme
     UseModule WindowManager
     
+    
     DPI_Scale = DesktopResolutionX()
     If DPI_Scale <= 0
       DPI_Scale = 1.0
@@ -69,10 +70,13 @@ Module Execute
     
     WindowManager::InitWindowManager()
     
-    *Window1 = JSWindow::CreateJSWindow(600, 100, 600, 400, "PBJS JS Example",   #PB_Window_SystemMenu | #PB_Window_SizeGadget |  #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget,  mainWindowHtmlStart, mainWindowHtmlStop ,#JSWindow_Behaviour_HideWindow)
+    
+        
+
+    *Window1 = JSWindow::CreateJSWindow("main-window",600, 100, 600, 400, "PBJS JS Example",   #PB_Window_SystemMenu | #PB_Window_SizeGadget |  #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget,  mainWindowHtmlStart, mainWindowHtmlStop ,#JSWindow_Behaviour_HideWindow)
     
     
-    *Window2 = JSWindow::CreateJSWindow(500, 50, 700, 600, "PBJS JS Example", 
+    *Window2 = JSWindow::CreateJSWindow("sub-window",500, 50, 700, 600, "PBJS JS Example", 
                                         #PB_Window_SystemMenu | #PB_Window_SizeGadget | 
                                         #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget, mainWindowHtmlStart, mainWindowHtmlStop, #JSWindow_Behaviour_HideWindow, @WindowLoaded())
    
@@ -83,8 +87,13 @@ Module Execute
    ButtonGadget(1,75,130,150,30,"Open PBJS Window")
    ButtonGadget(2,75,170,150,30,"Resize PBJS Window")
 
-   JSWindow::OpenJSWindow(*Window1)
+   JSWindow::OpenJSWindow(*Window1) 
+   
 
+ ;   OpenJSWindow(GetJSWindow("main-window"))
+   
+
+   
 
     WindowManager::RunEventLoop(@HandleMainEvent(),@KeepRunning()) 
    
@@ -110,8 +119,9 @@ DataSection
   EndMainWindow:
 EndDataSection
 ; IDE Options = PureBasic 6.21 (Windows - x64)
-; CursorPosition = 35
-; FirstLine = 28
+; CursorPosition = 111
+; FirstLine = 59
 ; Folding = --
 ; EnableXP
 ; DPIAware
+; Executable = ..\..\main.exe

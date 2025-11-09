@@ -4,6 +4,13 @@ import { TodoList } from "./components/TodoList";
 import { AddTodo } from "./components/AddTodo";
 
 function App() {
+  window.pbjs.handleAll("testSuccess", (event: any, params: any, data: any) => {
+    event.success({
+      message: "Success from " + window.pbjs.windowName + "  yaaay " + data,
+      data: params,
+    });
+  });
+
   return (
     <TodoProvider>
       <div className="app">

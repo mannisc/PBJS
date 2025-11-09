@@ -1,0 +1,195 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .container { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 20px; border-radius: 10px; }
+    h1 { margin-top: 0; }
+    button { padding: 10px 20px; margin: 5px; background: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    button:hover { background: #f0f0f0; }
+    button.success { background: #4CAF50; color: white; }
+    button.success:hover { background: #45a049; }
+    button.error { background: #f44336; color: white; }
+    button.error:hover { background: #da190b; }
+    button.custom { background: #FF9800; color: white; }
+    button.custom:hover { background: #e68900; }
+    .output { background: rgba(0,0,0,0.3); padding: 15px; margin-top: 10px; border-radius: 5px; max-height: 300px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px; }
+    .log-item { padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .section { margin: 20px 0; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px; }
+    .section h3 { margin-top: 0; font-size: 14px; opacity: 0.8; }
+    .target-select { padding: 8px; margin: 5px; border-radius: 5px; border: none; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Window: <span id="windowName"></span></h1>
+    
+    <div class="section">
+      <h2>Response Types (event.success / error / reply)</h2>
+      <h3>Target: 
+        <select class="target-select" id="targetWindow">
+          <option>Window1</option>
+          <option>Window2</option>
+          <option>Window3</option>
+        </select>
+      </h3>
+      <button class="success" onclick="invokeSuccess()">Invoke → event.success()</button>
+      <button class="error" onclick="invokeError()">Invoke → event.error()</button>
+      <button class="custom" onclick="invokeCustomReply()">Invoke → event.reply()</button>
+      <button onclick="invokeAutoSuccess()">Invoke → Auto Success (no response)</button>
+      <button onclick="invokeNoHandler()">Invoke → No Handler (error)</button>
+      <button class="error" onclick="invokeException()">Invoke → Handler Exception</button>
+    </div>
+    
+    <div class="section">
+      <h2>Broadcast to All Windows</h2>
+      <button class="success" onclick="invokeAllSuccess()">InvokeAll → All Success</button>
+      <button class="error" onclick="invokeAllMixed()">InvokeAll → Mixed Responses</button>
+    </div>
+    
+    <div id="output" class="output"></div>
+  </div>
+  
+  <script>
+    const output = document.getElementById('output');
+    
+    function log(msg) {
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = 'log-item';
+      div.innerHTML = '<span style="color: #90caf9">' + time + '</span> ' + msg;
+      output.appendChild(div);
+      output.scrollTop = output.scrollHeight;
+    }
+    
+    function initializeApp() {
+      log('Initialized App');
+      document.getElementById('windowName').textContent = pbjs.windowName;
+      
+      pbjs.handleAll('testSuccess', (event, params, data) => {
+        log('📨 Handler: testSuccess from ' + event.fromWindow);
+        event.success({ message: 'Success from ' + pbjs.windowName, data: params });
+      });
+      
+      pbjs.handleAll('testError', (event, params, data) => {
+        log('📨 Handler: testError from ' + event.fromWindow);
+        event.error('Intentional error from ' + pbjs.windowName);
+      });
+      
+      pbjs.handleAll('testReply', (event, params, data) => {
+        log('📨 Handler: testReply from ' + event.fromWindow);
+        event.reply({ custom: true, window: pbjs.windowName, receivedParams: params });
+      });
+      
+      pbjs.handleAll('testAuto', (event, params, data) => {
+        log('📨 Handler: testAuto from ' + event.fromWindow + ' (no response, will auto-success)');
+      });
+      
+      pbjs.handleAll('testException', (event, params, data) => {
+        log('📨 Handler: testException from ' + event.fromWindow + ' (will throw)');
+        throw new Error('Intentional exception in handler');
+      });
+      
+      pbjs.handleAll('testMixed', (event, params, data) => {
+        const rand = Math.random();
+        if (rand < 0.33) {
+          event.success('Success from ' + pbjs.windowName);
+        } else if (rand < 0.66) {
+          event.error('Error from ' + pbjs.windowName);
+        } else {
+          event.reply({ custom: 'reply', from: pbjs.windowName });
+        }
+      });
+    }
+    
+    if (pbjsBridgeReady) {
+      initializeApp();
+    } else {
+      window.addEventListener('pbjs-bridge-ready', initializeApp);
+    }
+    
+    function getTarget() {
+      return document.getElementById('targetWindow').value;
+    }
+    
+    async function invokeSuccess() {
+      try {
+        const response = await pbjs.invoke(getTarget(), 'testSuccess', { test: 'params' }, { test: 'data' });
+        log('✅ <b>SUCCESS</b>: ' + JSON.stringify(response));
+      } catch (err) {
+        log('❌ Exception: ' + err.message);
+      }
+    }
+    
+    async function invokeError() {
+      try {
+        const response = await pbjs.invoke(getTarget(), 'testError', {}, {});
+        log('Response: ' + JSON.stringify(response));
+      } catch (err) {
+        log('❌ <b>ERROR CAUGHT</b>: ' + err.message);
+      }
+    }
+    
+    async function invokeCustomReply() {
+      try {
+        const response = await pbjs.invoke(getTarget(), 'testReply', { myParam: 123 }, {});
+        log('📦 <b>CUSTOM REPLY</b>: ' + JSON.stringify(response));
+      } catch (err) {
+        log('❌ Exception: ' + err.message);
+      }
+    }
+    
+    async function invokeAutoSuccess() {
+      try {
+        const response = await pbjs.invoke(getTarget(), 'testAuto', {}, {});
+        log('🤖 <b>AUTO-SUCCESS</b>: ' + JSON.stringify(response));
+      } catch (err) {
+        log('❌ Exception: ' + err.message);
+      }
+    }
+    
+    async function invokeNoHandler() {
+      try {
+        const response = await pbjs.invoke(getTarget(), 'nonExistentHandler', {}, {});
+        log('Response: ' + JSON.stringify(response));
+      } catch (err) {
+        log('❌ <b>NO HANDLER</b>: ' + err.message);
+      }
+    }
+    
+    async function invokeException() {
+      try {
+        const response = await pbjs.invoke(getTarget(), 'testException', {}, {});
+        log('Response: ' + JSON.stringify(response));
+      } catch (err) {
+        log('❌ <b>EXCEPTION IN HANDLER</b>: ' + err.message);
+      }
+    }
+    
+    async function invokeAllSuccess() {
+      try {
+        const responses = await pbjs.invokeAll('testSuccess', { broadcast: true }, {});
+        log('📡 <b>BROADCAST SUCCESS</b>: Received ' + responses.length + ' responses');
+        responses.forEach(resp => {
+          log('  └─ ' + resp.windowName + ': ' + JSON.stringify(resp.response));
+        });
+      } catch (err) {
+        log('❌ Exception: ' + err.message);
+      }
+    }
+    
+    async function invokeAllMixed() {
+      try {
+        const responses = await pbjs.invokeAll('testMixed', {}, {});
+        log('📡 <b>BROADCAST MIXED</b>: Received ' + responses.length + ' responses');
+        responses.forEach(resp => {
+          const type = resp.response.error ? '❌' : resp.response.success ? '✅' : '📦';
+          log('  └─ ' + type + ' ' + resp.windowName + ': ' + JSON.stringify(resp.response));
+        });
+      } catch (err) {
+        log('❌ Exception: ' + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
