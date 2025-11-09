@@ -629,7 +629,7 @@ EndModule
 ;- JS BRIDGE DECLARE
 ; =============================================================================
 
-IncludeFile "pbjsBridge\pbjsBridgeDeclare.pb"
+IncludeFile "pbjsBridge/pbjsBridgeDeclare.pb"
 
 
 ; =============================================================================
@@ -1232,14 +1232,13 @@ EndModule
 
 
 
-IncludeFile "pbjsBridge\pbjsBridge.pb"
+IncludeFile "pbjsBridge/pbjsBridge.pb"
 
 
-
-; IDE Options = PureBasic 6.21 (Windows - x64)
-; CursorPosition = 921
-; FirstLine = 911
+; IDE Options = PureBasic 6.21 - C Backend (MacOS X - arm64)
+; CursorPosition = 1234
+; FirstLine = 1201
 ; Folding = ----------
 ; EnableXP
 ; DPIAware
-; Executable = ..\..\main.exe
+; Executable = ../../main.exe
