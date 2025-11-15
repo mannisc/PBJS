@@ -394,6 +394,9 @@ Module WindowManager
   EndStructure 
   
   
+  Global OSVersion = OSVersion()
+
+  
   Procedure InitWindowManager()
     Global NewMap ManagedWindowsHandles.HandleInfo()
     Global NewList ManagedWindows.AppWindow()
@@ -424,8 +427,9 @@ Module WindowManager
       If IsWindow(*Window\Window)
         If Not manualOpen
           
-          CompilerIf #PB_Compiler_OS = #PB_OS_Windows
-            If  *Window\WasOpen
+          CompilerIf #PB_Compiler_OS = #PB_OS_Windows 
+            
+            If  *Window\WasOpen Or (OSVersion <> #PB_OS_Windows_11 And osVersion <> #PB_OS_Windows_Future)
               HideWindow(*Window\Window, #False)
             Else 
               *Window\WasOpen = #True 
@@ -1288,8 +1292,8 @@ IncludeFile "pbjsBridge/pbjsBridge.pb"
 ; Folding = -----------
 ; EnableThread
 ; IDE Options = PureBasic 6.21 (Windows - x64)
-; CursorPosition = 1190
-; FirstLine = 1177
+; CursorPosition = 431
+; FirstLine = 424
 ; Folding = ------------
 ; EnableThread
 ; EnableXP
