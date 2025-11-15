@@ -746,9 +746,23 @@ CompilerEndIf
   
   
   
-  Procedure UpdateWebViewScale(gadget, width, height)
+  Procedure UpdateWebViewScale(*JSWindow.JSWindow, width, height)
     Protected script$ = "pbjsUpdateScale(" + Str(width) + "," + Str(height) + ");"
-    WebViewExecuteScript(gadget, script$)
+    
+   
+    Debug *JSWindow\Name
+    
+    CompilerIf #PB_Compiler_OS = #PB_OS_MacOS
+      
+      If   IsIconic_(WindowID(*JSWindow\Window))
+        ProcedureReturn
+      EndIf
+    CompilerEndIf
+    Debug *JSWindow\WebViewGadget
+     If   Not IsGadget(*JSWindow\WebViewGadget)
+        ProcedureReturn
+    EndIf
+    WebViewExecuteScript(*JSWindow\WebViewGadget, script$)
   EndProcedure
   
   
@@ -805,7 +819,10 @@ CompilerEndIf
         If MacOSResizeStates()\NSWindow = nsWindow And MacOSResizeStates()\Active
           Protected *State.MacOSResizeState = @MacOSResizeStates()
           
-          webViewGadget = JSWindows(Str(MacOSResizeStates()\Window\Window))\WebViewGadget
+          
+           *JSWindow.JSWIndow = JSWindows(Str(MacOSResizeStates()\Window\Window))
+          
+          webViewGadget = *JSWindow\WebViewGadget
           
           
           
@@ -844,7 +861,7 @@ CompilerEndIf
           If currentW <> *State\LastWidth Or currentH <> *State\LastHeight
             *State\LastWidth = currentW
             *State\LastHeight = currentH
-            UpdateWebViewScale(webViewGadget, currentW, currentH)
+            UpdateWebViewScale(*JSWindow, currentW, currentH)
           EndIf
           
           Break
@@ -1104,9 +1121,9 @@ CompilerEndIf
   Procedure OpenJSWindow(*Window.AppWindow )  
     Protected manualOpen
     If IsWindow(*Window\Window)
-      *JSWIndow.JSWindow = JSWindows(Str(*Window\Window))
+      *JSWindow.JSWindow = JSWindows(Str(*Window\Window))
       
-      If *JSWIndow\Visible
+      If *JSWindow\Visible
         manualOpen = #False
       Else
         CompilerIf #PB_Compiler_OS = #PB_OS_MacOS
@@ -1115,14 +1132,14 @@ CompilerEndIf
           manualOpen = #False
         CompilerEndIf 
       EndIf 
-      *JSWIndow\Open = #True
+      *JSWindow\Open = #True
       
-      *JSWIndow\Visible = Bool(Not manualOpen)
+      *JSWindow\Visible = Bool(Not manualOpen)
       
       
-      *JSWIndow\OpenTime = ElapsedMilliseconds()
+      *JSWindow\OpenTime = ElapsedMilliseconds()
       OpenManagedWindow(*Window,manualOpen)
-      If Not *JSWIndow\Visible
+      If Not *JSWindow\Visible
         CreateThread(@ForceContentVisible(),*Window\Window)
       EndIf 
       
@@ -1162,7 +1179,7 @@ CompilerEndIf
   
   Procedure.i HandleEvent(*Window.AppWindow,Event.i, Gadget.i, Type.i)
     
-    *JSWIndow.JSWindow = JSWindows(Str(*Window\Window))
+    *JSWindow.JSWindow = JSWindows(Str(*Window\Window))
     
     Protected closeWindow = #False
     
@@ -1174,24 +1191,27 @@ CompilerEndIf
         EndSelect
         
       Case #PB_Event_SizeWindow
-        w = WindowWidth(*JSWIndow\Window)
-        h = WindowHeight(*JSWIndow\Window)
-        UpdateWebViewScale(*JSWIndow\WebViewGadget, w, h) 
+        
+        w = WindowWidth(*JSWindow\Window)
+        h = WindowHeight(*JSWindow\Window)
+        UpdateWebViewScale(*JSWindow, w, h) 
+        
+
       Case  #CustomWindowEvent
         Select Type.i 
           Case #Event_Loaded_Html
-            webViewGadget = *JSWIndow\WebViewGadget
+            webViewGadget = *JSWindow\WebViewGadget
             
-            html.s =  JSBridge::WithBridgeScript(*JSWIndow\Html, *JSWIndow\Name)
-            html.s =  WithPbjsScript(html, *JSWIndow)
+            html.s =  JSBridge::WithBridgeScript(*JSWindow\Html, *JSWindow\Name)
+            html.s =  WithPbjsScript(html, *JSWindow)
             
             SetGadgetItemText(webViewGadget, #PB_WebView_HtmlCode, html)
-            *JSWIndow\LoadedCode = #True 
+            *JSWindow\LoadedCode = #True 
           Case #Event_Content_Ready
-            webViewGadget = *JSWIndow\WebViewGadget
-            w = WindowWidth(*JSWIndow\Window)
-            h = WindowHeight(*JSWIndow\Window)
-            UpdateWebViewScale(*JSWIndow\WebViewGadget, w, h) 
+            webViewGadget = *JSWindow\WebViewGadget
+            w = WindowWidth(*JSWindow\Window)
+            h = WindowHeight(*JSWindow\Window)
+            UpdateWebViewScale(*JSWindow, w, h) 
             
             CompilerIf #PB_Compiler_OS = #PB_OS_Windows
               ResizeGadget(webViewGadget,0,0,#PB_Ignore,#PB_Ignore)
@@ -1199,21 +1219,21 @@ CompilerEndIf
               HideGadget(webViewGadget,#False)
             CompilerEndIf 
             CompilerIf #PB_Compiler_OS = #PB_OS_Windows
-              ;UpdateWindow_(WindowID(*JSWIndow\Window))
-              RedrawWindow_(GadgetID(*JSWIndow\WebViewGadget), #Null, #Null, #RDW_UPDATENOW  ) 
-              RedrawWindow_(WindowID(*JSWIndow\Window), #Null, #Null, #RDW_UPDATENOW | #RDW_ALLCHILDREN ) 
+              ;UpdateWindow_(WindowID(*JSWindow\Window))
+              RedrawWindow_(GadgetID(*JSWindow\WebViewGadget), #Null, #Null, #RDW_UPDATENOW  ) 
+              RedrawWindow_(WindowID(*JSWindow\Window), #Null, #Null, #RDW_UPDATENOW | #RDW_ALLCHILDREN ) 
             CompilerEndIf 
             Debug " #Event_Content_Ready "+*Window\Title
-            HideGadget(*JSWIndow\WebViewGadget,#False)
+            HideGadget(*JSWindow\WebViewGadget,#False)
 
-            If *JSWIndow\Open And Not *JSWIndow\Visible
-              HideWindow(*JSWIndow\Window, #False)
-              *JSWIndow\Visible = #True 
+            If *JSWindow\Open And Not *JSWindow\Visible
+              HideWindow(*JSWindow\Window, #False)
+              *JSWindow\Visible = #True 
             EndIf 
-            SetBodyFadeIn(*JSWIndow)
+            SetBodyFadeIn(*JSWindow)
             If *JSWindow\Ready
               If *JSWindow\WindowReadyProc
-                CallFunctionFast(*JSWIndow\WindowReadyProc, *Window , *JSWIndow)
+                CallFunctionFast(*JSWindow\WindowReadyProc, *Window , *JSWindow)
               EndIf 
             EndIf 
         EndSelect 
@@ -1254,7 +1274,7 @@ CompilerEndIf
         Case #WM_SIZE , #WM_SIZING
           w = WindowWidth(*Window\Window)
           h = WindowHeight(*Window\Window)
-          UpdateWebViewScale(JSWindows(Str(*Window\Window))\WebViewGadget, w, h)  
+          UpdateWebViewScale(JSWindows(Str(*Window\Window)), w, h)  
           ProcedureReturn #True
           
       EndSelect
@@ -1292,8 +1312,8 @@ IncludeFile "pbjsBridge/pbjsBridge.pb"
 ; Folding = -----------
 ; EnableThread
 ; IDE Options = PureBasic 6.21 (Windows - x64)
-; CursorPosition = 431
-; FirstLine = 424
+; CursorPosition = 1198
+; FirstLine = 1179
 ; Folding = ------------
 ; EnableThread
 ; EnableXP
